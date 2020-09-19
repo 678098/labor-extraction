@@ -3,10 +3,8 @@ import json
 import time
 
 from load_data import load_resume, save_descriptions
+from nlp_utils import NLPProcessor
 
-
-# def main():
-#     wtypes = {'VERB', 'CCONJ', 'NOUN', 'PRON', 'AUX', 'NUM', 'PART', 'ADP', 'ADV', 'PUNCT', 'X', 'DET', 'ADJ', 'SYM', 'SCONJ', 'PROPN'}
 
 from natasha import (
     Segmenter,
@@ -27,15 +25,7 @@ from natasha import (
 def segment_text(data):
     tstart = time.time()
 
-    segmenter = Segmenter()
-    morph_vocab = MorphVocab()
-
-    emb = NewsEmbedding()
-    morph_tagger = NewsMorphTagger(emb)
-    syntax_parser = NewsSyntaxParser(emb)
-    ner_tagger = NewsNERTagger(emb)
-
-    names_extractor = NamesExtractor(morph_vocab)
+    proc = NLPProcessor()
 
     memes = dict()
     wcounters_by_type = dict()
@@ -43,14 +33,7 @@ def segment_text(data):
     for i in range(data.shape[0]):
         text = data['description'][i]
         # print(text)
-        doc = Doc(text)
-        doc.segment(segmenter)
-        doc.tag_morph(morph_tagger)
-
-        for token in doc.tokens:
-            token.lemmatize(morph_vocab)
-
-        doc.parse_syntax(syntax_parser)
+        doc = proc.process(text)
 
         tokens_by_id = {token.id: token for token in doc.tokens}
 

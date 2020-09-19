@@ -12,6 +12,8 @@ def filter_nouns():
     with open('output/nouns_filtered.txt', 'w', encoding='utf-8') as f:
         json.dump(nouns, f, ensure_ascii=False)
     print(nouns)
+    for n in nouns:
+        print(n)
 
 
 if __name__ == "__main__":
