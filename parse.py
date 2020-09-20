@@ -35,7 +35,7 @@ def main():
 
     df = load_resume()
     for i in range(df.shape[0]):
-        schema = eval.evaluate(df['position'][i], df['description'][0])
+        schema = eval.evaluate(df['position'][i], df['description'][i])
         print(schema)
 
 
