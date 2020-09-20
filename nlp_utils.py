@@ -1,3 +1,5 @@
+from typing import Dict
+
 from natasha import (
     Segmenter,
     MorphVocab,
@@ -36,3 +38,12 @@ class NLPProcessor:
 
         doc.parse_syntax(self.syntax_parser)
         return doc
+
+
+def filter_by_count(d: Dict[str, int], min_num) -> Dict[str, int]:
+    return {key:d[key] for key in d if d[key] >= min_num}
+
+
+def sort_by_count(d: Dict[str, int]) -> Dict[str, int]:
+    srt = sorted(d.items(), key=lambda x: x[1], reverse=True)
+    return {v[0]:v[1] for v in srt}
