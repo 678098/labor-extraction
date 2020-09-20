@@ -1,3 +1,6 @@
+import json
+from typing import Dict
+
 import csv
 import pandas as pd
 
@@ -32,10 +35,3 @@ def load_resume() -> pd.DataFrame:
 
 def load_vacancies() -> pd.DataFrame:
     return load_df('vacancies_to_hackaton.csv')
-
-
-def save_descriptions(df: pd.DataFrame) -> None:
-    with open('output/descs.txt', 'w') as f:
-        for i in range(df.shape[0]):
-            f.write(df['description'][i])
-            f.write('\n\n=====================================\n\n')

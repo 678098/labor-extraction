@@ -2,12 +2,18 @@ import os
 import json
 import time
 
-from load_data import load_resume, save_descriptions
+from load_data import load_resume
 from nlp_utils import NLPProcessor, sort_by_count
 from config import main_words, non_main_words
 
 
-def extract_profession(proc: NLPProcessor, text: str) -> str:
+def load_good_memes():
+    with open('output/memes.json', 'r', encoding='utf-8') as f:
+        memes = json.load(f)
+    return memes
+
+
+def extract_profession(proc: NLPProcessor, text: str) -> (str, str):
     text = str(text).replace('.', ' ')
     text = str(text).replace(',', ' ')
     doc = proc.process(text)
@@ -22,7 +28,8 @@ def extract_profession(proc: NLPProcessor, text: str) -> str:
             break
 
     if root_id is None:
-        return tokens_by_id[min(tokens_by_id.keys())].lemma
+        token = tokens_by_id[min(tokens_by_id.keys())]
+        return token.lemma, token.text
 
     ids = {root_id}
     expand_factor = 1
@@ -33,8 +40,9 @@ def extract_profession(proc: NLPProcessor, text: str) -> str:
                 next_ids.add(token.id)
         ids = next_ids
 
-    prf_words = [token.lemma for token in doc.tokens if token.id in ids]
-    return ' '.join(prf_words)
+    prf_words = [token.text for token in doc.tokens if token.id in ids]
+    prf_lemmas = [token.lemma for token in doc.tokens if token.id in ids]
+    return ' '.join(prf_lemmas), ' '.join(prf_words).lower()
 
 
 def extract_memes(doc):
@@ -46,17 +54,30 @@ def extract_memes(doc):
             continue
         if not token.head_id in tokens_by_id:
             continue
+        if token.head_id == token.id:
+            continue
         parent = tokens_by_id[token.head_id]
         if parent.pos != 'NOUN':
             continue
         if (parent.lemma in non_main_words) or (not parent.lemma in main_words):
             continue
-        meme = f'{parent.lemma} {token.lemma}'
-        memes.append(meme)
-    return set(memes)
+        if parent.lemma == token.lemma:
+            continue
+
+        if parent.stop < token.start:
+            dist = token.start - parent.stop
+        else:
+            dist = parent.start - token.stop
+        if dist > 10:
+            continue
+
+        meme_lemma = f'{parent.lemma} {token.lemma}'
+        meme_text = f'{parent.text} {token.text}'.lower()
+        memes.append((meme_lemma, meme_text))
+    return memes
 
 
-def segment_text(data):
+def dump_counters_memes(df):
     tstart = time.time()
 
     proc = NLPProcessor()
@@ -64,12 +85,13 @@ def segment_text(data):
     memes = dict()
     wcounters_by_type = dict()
 
-    for i in range(data.shape[0]):
-        text = data['description'][i]
+    for i in range(df.shape[0]):
+        text = df['description'][i]
         # print(text)
         doc = proc.process(text)
 
-        for meme in extract_memes(doc):
+        for meme_pair in extract_memes(doc):
+            meme = meme_pair[0]
             if meme in memes:
                 memes[meme] += 1
             else:
@@ -105,14 +127,77 @@ def segment_text(data):
     print(f'Extraction took {tend - tstart} seconds')
 
 
+def dump_professions(df):
+    proc = NLPProcessor()
+    professions = {}
+
+    for i in range(df.shape[0]):
+        prof_lemma, prof_full = extract_profession(proc, df['position'][i])
+        # print(prof_lemma, prof_full)
+        # print(prof, df['position'][i])
+        if prof_lemma in professions:
+            professions[prof_lemma] += 1
+        else:
+            professions[prof_lemma] = 1
+
+    professions = sort_by_count(professions)
+    print(professions)
+
+    with open(f'output/professions.json', 'w', encoding='utf-8') as f:
+        f.write(json.dumps(professions, ensure_ascii=False))
+
+
+def dump_schema_build_info(df):
+    good_memes = load_good_memes().keys()
+
+    proc = NLPProcessor()
+
+    schema = {}
+    for i in range(df.shape[0]):
+        doc = proc.process(df['description'][i])
+        prof, prof_text = extract_profession(proc, df['position'][i])
+
+        if prof in schema:
+            schema[prof]['total'] += 1
+        else:
+            schema[prof] = {'name': prof_text, 'total': 1, 'counters': {}, 'explanations': {}}
+
+        memes = extract_memes(doc)
+        for meme_pair in memes:
+            meme, meme_text = meme_pair
+            if not meme in good_memes:
+                continue
+            schema[prof]['explanations'][meme] = meme_text
+            if meme in schema[prof]['counters']:
+                schema[prof]['counters'][meme] += 1
+            else:
+                schema[prof]['counters'][meme] = 1
+
+
+    for prof in schema:
+        schema[prof]['counters'] = sort_by_count(schema[prof]['counters'])
+
+    with open(f'output/schema_builder.json', 'w', encoding='utf-8') as f:
+        f.write(json.dumps(schema, indent=4, ensure_ascii=False))
+
+
+def dump_descriptions(df):
+    with open('output/descs.txt', 'w') as f:
+        for i in range(df.shape[0]):
+            f.write(df['description'][i])
+            f.write('\n\n=====================================\n\n')
+
+
 def main():
     try:
         os.makedirs('output')
     except FileExistsError:
         pass
     df = load_resume()
-    save_descriptions(df)
-    segment_text(df)
+    # dump_descriptions(df)
+    # dump_counters_memes(df)
+    # dump_professions(df)
+    dump_schema_build_info(df)
 
 
 if __name__ == "__main__":

@@ -5,48 +5,39 @@ from load_data import load_resume
 from extract import extract_memes, extract_profession
 
 
-def load_actual_memes():
-    with open('output/memes.json', 'r', encoding='utf-8') as f:
-        memes = json.load(f)
-    return memes
+class SchemaEvaluator:
+    def __init__(self):
+        with open('schema.json', 'r', encoding='utf-8') as f:
+            self.schema = json.load(f)
+        self.proc = NLPProcessor()
 
+    def evaluate(self, position: str, description: str):
+        prof, prof_text = extract_profession(self.proc, position)
+        if not prof in self.schema:
+            return {}
 
-def parse_resume():
-    pass
+        sc = self.schema[prof]
+
+        doc = self.proc.process(description)
+        memes = extract_memes(doc)
+
+        res = {perk['lemma']: False for perk in sc['perks']}
+        for meme_pair in memes:
+            meme = meme_pair[0]
+            if meme in res:
+                res[meme] = True
+
+        return res
 
 
 def main():
-    good_memes = load_actual_memes().keys()
+    eval = SchemaEvaluator()
 
     df = load_resume()
-    proc = NLPProcessor()
-
-    schema = {}
-
     for i in range(df.shape[0]):
-        doc = proc.process(df['description'][i])
-        prof = extract_profession(proc, df['position'][i])
+        schema = eval.evaluate(df['position'][i], df['description'][0])
+        print(schema)
 
-        if prof in schema:
-            schema[prof]['total'] += 1
-        else:
-            schema[prof] = {'total': 1}
-
-        memes = extract_memes(doc)
-        for meme in memes:
-            if not meme in good_memes:
-                continue
-            if meme in schema[prof]:
-                schema[prof][meme] += 1
-            else:
-                schema[prof][meme] = 1
-
-
-    for prof in schema:
-        schema[prof] = sort_by_count(schema[prof])
-
-    with open(f'output/schema.json', 'w', encoding='utf-8') as f:
-        f.write(json.dumps(schema, indent=4, ensure_ascii=False))
 
 
 if __name__ == "__main__":
