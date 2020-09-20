@@ -33,11 +33,14 @@ class SchemaEvaluator:
 def main():
     eval = SchemaEvaluator()
 
+    res = []
     df = load_resume()
     for i in range(df.shape[0]):
         schema = eval.evaluate(df['position'][i], df['description'][i])
-        print(schema)
+        res.append(schema)
 
+    with open(f'res.json', 'w', encoding='utf-8') as f:
+        f.write(json.dumps(res, ensure_ascii=False))
 
 
 if __name__ == "__main__":
